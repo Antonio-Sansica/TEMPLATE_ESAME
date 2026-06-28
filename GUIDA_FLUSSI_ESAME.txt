@@ -1,0 +1,98 @@
+===============================================================================
+ROADMAP ESAME: COME COLLEGARE I FILE SENZA PERDERSI
+===============================================================================
+
+-------------------------------------------------------------------------------
+📌 FLUSSO 1: FILTRO INIZIALE TENDINA (Facile)
+"L'utente seleziona un parametro PRIMA di creare il grafo."
+-------------------------------------------------------------------------------
+1. [DAO] -> get_tutti_gli_anni() (SELECT DISTINCT anno FROM...). Restituisce lista semplice.
+2. [DTO] -> Non serve.
+3. [MODEL] -> Funzione ponte che restituisce i dati del DAO al Controller.
+4. [CONTROLLER] -> populate_dd_iniziali(). Fa un ciclo for e appende a self._view.dd_filtro_base.
+5. [VIEW] -> Elemento: dd_filtro_base (Dropdown).
+
+-------------------------------------------------------------------------------
+📌 FLUSSO 2: CREAZIONE GRAFO PESATO (Medio - La base di quasi tutti gli esami)
+"Unire andata/ritorno calcolando un peso (es. media o somma)."
+-------------------------------------------------------------------------------
+1. [DAO] -> get_tutti_i_nodi() (per gli oggetti) e get_archi_pesati_ninja() (Usa LEAST/GREATEST).
+2. [DTO] -> I metodi __eq__ e __hash__ devono essere perfetti!
+3. [MODEL] -> build_graph() -> Usa [OPZIONE 1] per i Nodi e [OPZIONE A] per gli Archi (add_edge con weight).
+4. [CONTROLLER] -> handle_crea_grafo(). Chiama il Model, stampa i dettagli e RIEMPIE la tendina dei nodi usando sort(key=lambda).
+5. [VIEW] -> txt_input, btn_crea_grafo, txt_result.
+
+-------------------------------------------------------------------------------
+📌 FLUSSO 3: IL NODO CON PIÙ COLLEGAMENTI (Facile - Domanda classica post-grafo)
+"Stampare il nodo con il grado massimo e il numero dei suoi vicini."
+-------------------------------------------------------------------------------
+1. [DAO] -> Nessuna query. Il grafo è già costruito.
+2. [DTO] -> Nessuna modifica.
+3. [MODEL] -> Chiama get_nodo_con_piu_vicini(). Usa self.grafo.degree[nodo] per trovare il massimo.
+4. [CONTROLLER] -> Dentro handle_crea_grafo() o in un bottone a parte, chiama la funzione del Model e stampa: "Il nodo con più vicini è {nodo.nome} con {vicini} collegamenti".
+5. [VIEW] -> Stampa in txt_result.
+
+-------------------------------------------------------------------------------
+📌 FLUSSO 4: IL PARADOSSO DELL'AUSTRALIA (Difficile - Nodi Filtrati)
+"Costruire il grafo includendo SOLO i nodi che hanno avuto almeno un collegamento."
+-------------------------------------------------------------------------------
+1. [DAO] -> get_id_nodi_validi_union(). Usa la UNION tra partenza e arrivo per avere ID puliti.
+2. [DTO] -> Nessuna modifica.
+3. [MODEL] -> build_graph() -> Usa [OPZIONE 2] nei Passi Sacri! Fa un ciclo sugli ID della UNION e pesca dalla mappa solo quelli presenti.
+4. [CONTROLLER] -> Identico al Flusso 2.
+5. [VIEW] -> Identico al Flusso 2.
+
+-------------------------------------------------------------------------------
+📌 FLUSSO 5: ANALISI RAGGIUNGIBILITÀ - DFS (Difficile ma Standard)
+"Quanti nodi si possono visitare partendo dallo stato X scelto dalla tendina?"
+-------------------------------------------------------------------------------
+1. [DAO] -> Nessuna query.
+2. [DTO] -> Nessuna modifica.
+3. [MODEL] -> get_nodi_raggiungibili_dfs(id_partenza) e _esplora_ricorsivo(). Il motore della ricorsione DFS.
+4. [CONTROLLER] -> handle_ricerca_avanzata(). Legge l'ID dalla tendina dd_nodo_scelto.value, passa l'ID al Model e stampa la lunghezza della lista restituita.
+5. [VIEW] -> Elemento: dd_nodo_scelto, btn_analizza.
+
+-------------------------------------------------------------------------------
+📌 FLUSSO 6: IL NAVIGATORE - DIJKSTRA (Difficile - Percorso Ottimo)
+"L'utente sceglie un Punto A e un Punto B. Trova il percorso più breve."
+-------------------------------------------------------------------------------
+1. [DAO] -> Nessuna query.
+2. [DTO] -> Nessuna modifica.
+3. [MODEL] -> get_percorso_piu_breve(id_A, id_B). Usa nx.shortest_path assicurandosi di usare il parametro weight='weight'.
+4. [CONTROLLER] -> Legge DUE tendine (es. Partenza e Destinazione), passa i due ID al Model, riceve la lista ordinata dei nodi e fa un ciclo for per stamparli in ordine (es. " -> ".join(...)).
+5. [VIEW] -> Devi aggiungere alla UI una seconda tendina (es. dd_destinazione) uguale a dd_nodo_scelto.
+===============================================================================
+
+-------------------------------------------------------------------------------
+📌 FLUSSO 7: RICORSIONE DI OTTIMIZZAZIONE (Il Problema dello Zaino / Lab 08)
+(Difficile - L'Esame da 30 e lode)
+"Trova la combinazione (o il percorso) che massimizza i clienti / minimizza il peso
+rispettando il vincolo X e Y."
+-------------------------------------------------------------------------------
+1. [DAO] -> Nessuna query aggiuntiva se i dati sono già nel grafo o in memoria.
+2. [DTO] -> FONDAMENTALE. Inserisci le @property per calcolare al volo anni, durate
+   o punteggi da usare nei vincoli.
+3. [MODEL] -> Usa l'Opzione C (calcola_percorso_ottimo e _ricorsione_ottimizzazione).
+   - Attenzione: Non dimenticare copy.deepcopy(parziale) quando salvi il record!
+   - Attenzione: Usa l'helper _vincoli_rispettati() per non sporcare il ciclo.
+4. [CONTROLLER] -> Leggi i vincoli dai TextField (es. max_anni, max_ore) usando il try/except.
+   Scommenta l'Opzione C in handle_ricerca_avanzata, passa i vincoli al Model
+   e stampa il punteggio massimo e gli elementi della soluzione ottima.
+5. [VIEW] -> Aggiungi i TextField necessari per far inserire i vincoli all'utente.
+===============================================================================
+
+-------------------------------------------------------------------------------
+📌 FLUSSO 8: SIMULATORE AD EVENTI DISCRETI
+(Alternativa alla Ricorsione)
+"Simulare l'andamento del sistema nel tempo (es. N giorni, arrivo voli, traffico)."
+-------------------------------------------------------------------------------
+1. [DAO] -> Non serve quasi mai per il simulatore puro, o al massimo estrae i dati iniziali.
+2. [DTO] -> Nel file 'template_simulatore.py' crea la @dataclass(order=True) Evento.
+   Ricorda: l'attributo 'tempo' deve essere il primo!
+3. [MODEL] -> Inizializza la classe Simulatore, azzera le statistiche e fai il primo
+   heapq.heappush() nella funzione inizializza(). Poi lancia run() che usa il ciclo while.
+4. [CONTROLLER] -> Leggi i parametri (es. numero di casse aperte) dai TextField.
+   Chiama self._model.simulatore.inizializza(param) e poi self._model.simulatore.run().
+5. [VIEW] -> Aggiungi i TextField per i parametri della simulazione.
+   Stampa in txt_result le statistiche finali del simulatore (es. clienti serviti, rifiuti).
+===============================================================================

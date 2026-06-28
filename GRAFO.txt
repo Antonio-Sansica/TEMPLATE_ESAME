@@ -1,0 +1,31 @@
+# ==============================================================================
+        # STAMPA DETTAGLIATA DEGLI ARCHI E DEI LORO PESI
+        # === QUANDO USARLA ===
+        # Quando la traccia chiede esplicitamente: "Stampare l'elenco di tutti gli
+        # archi presenti nel grafo e il relativo peso" (o la distanza, o i passeggeri).
+        # === COME USARLA ===
+        # Inseriscila nel Controller dopo aver chiamato self._model.build_graph()
+        # ==============================================================================
+
+        # 1. Stampa riassuntiva (Opzionale se l'hai già messa altrove)
+        nodi = self._model.grafo.number_of_nodes()
+        archi = self._model.grafo.number_of_edges()
+        self._view.txt_result.controls.append(
+            ft.Text(f"Dettagli Grafo: {nodi} nodi e {archi} archi.", color="green", weight="bold")
+        )
+
+        # 2. Ciclo magico su tutti gli archi
+        # data=True è fondamentale: dice a NetworkX di restituirci anche il "peso" e gli extra
+        for u, v, data in self._model.grafo.edges(data=True):
+
+            # TRUCCO DI SICUREZZA: Uso .get() così non crasha se il grafo non è pesato!
+            peso = data.get('weight', 'Nessun peso')
+
+            # u e v sono i tuoi OGGETTI completi (es. u.nome, v.nome, u.citta)
+            # Attenzione a usare l'attributo giusto per il nome (es. stateNme, iata_code, ecc.)
+            self._view.txt_result.controls.append(
+                ft.Text(f"Collegamento: {u.nome} <---> {v.nome} | Peso: {peso}")
+            )
+
+        # Ricordati sempre di aggiornare la pagina alla fine!
+        # self._view.update_page()

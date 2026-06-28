@@ -1,0 +1,90 @@
+-- ==============================================================================
+-- 📖 BIGNAMI SQL PER L'ESAME (DA INCOLLARE NELLE STRINGHE DEL DAO)
+-- ==============================================================================
+
+-- ------------------------------------------------------------------------------
+-- 1. I FONDAMENTALI (Estrazione semplice e ordinamento)
+-- ------------------------------------------------------------------------------
+SELECT a.ID, a.AIRPORT_NAME  -- 1. Cosa voglio estrarre (usa gli alias come 'a.')
+FROM airports a              -- 2. Da dove (do un soprannome 'a' alla tabella)
+WHERE a.CITY = %s            -- 3. Filtro base (Usa %s per i parametri da Python!)
+ORDER BY a.AIRPORT_NAME ASC  -- 4. Ordinamento (ASC = crescente, DESC = decrescente)
+LIMIT 10;                    -- 5. Prendi solo i primi 10 (se richiesto)
+
+-- ------------------------------------------------------------------------------
+-- 2. I JOIN (Collegare due tabelle in modo sicuro)
+-- ------------------------------------------------------------------------------
+-- 🚨 ATTENZIONE: MAI fare "FROM tab1, tab2". Usa SEMPRE il JOIN con l'ON!
+SELECT a.ID, a.AIRPORT_NAME, c.CITY_NAME
+FROM airports a
+JOIN cities c ON a.CITY_ID = c.ID; -- La condizione che "incolla" le due tabelle
+
+-- ------------------------------------------------------------------------------
+-- 3. RAGGRUPPAMENTI E CONTEGGI (FONDAMENTALE PER I NODI)
+-- ------------------------------------------------------------------------------
+-- SCENARIO: "Estrarre gli aeroporti che hanno ALMENO X compagnie"
+-- Regola d'oro: Se usi COUNT, SUM o AVG, devi SEMPRE usare GROUP BY per le altre colonne.
+-- Regola d'oro 2: Il WHERE filtra le RIGHE PRIMA di contare. L'HAVING filtra I GRUPPI DOPO aver contato.
+
+SELECT f.ORIGIN_AIRPORT_ID, COUNT(DISTINCT f.AIRLINE_ID) AS num_compagnie
+FROM flights f
+WHERE f.YEAR = 2015                      -- Filtro sui voli prima di contare
+GROUP BY f.ORIGIN_AIRPORT_ID             -- Creo un "gruppo" per ogni aeroporto
+HAVING num_compagnie >= %s;              -- Filtro il gruppo DOPO aver contato!
+
+-- ------------------------------------------------------------------------------
+-- 4. IL TRUCCO DEGLI ARCHI NON ORIENTATI (IL SALVA-ESAME)
+-- ------------------------------------------------------------------------------
+-- SCENARIO: "Archi tra due aeroporti, peso = somma totale voli (andata + ritorno)"
+-- Senza LEAST/GREATEST dovresti fare query chilometriche. Con loro, appiattisci A->B e B->A.
+
+SELECT LEAST(f.ORIGIN_AIRPORT_ID, f.DESTINATION_AIRPORT_ID) AS id1,
+       GREATEST(f.ORIGIN_AIRPORT_ID, f.DESTINATION_AIRPORT_ID) AS id2,
+       COUNT(*) AS peso                  -- Conta quante righe (voli) collegano id1 e id2
+FROM flights f
+GROUP BY id1, id2;                       -- Raggruppo per la coppia di aeroporti
+
+-- ------------------------------------------------------------------------------
+-- 5. L'UNIONE (IL TRUCCO "O DI QUA O DI LÀ")
+-- ------------------------------------------------------------------------------
+-- SCENARIO: "Tutti gli aeroporti coinvolti in un volo, sia in partenza CHE in arrivo"
+-- UNION incolla due query una sotto l'altra e CANCELLA IN AUTOMATICO i doppioni.
+
+SELECT f.ORIGIN_AIRPORT_ID AS airport_id, f.AIRLINE_ID
+FROM flights f
+UNION
+SELECT f.DESTINATION_AIRPORT_ID AS airport_id, f.AIRLINE_ID
+FROM flights f;
+
+-- ------------------------------------------------------------------------------
+-- 6. LA QUERY "A CIPOLLA" (LE SOTTO-QUERY)
+-- ------------------------------------------------------------------------------
+-- SCENARIO: Hai usato una UNION o un calcolo complesso e ora vuoi unire il risultato
+-- alla tabella originale per prendere i nomi (Es. gli oggetti completi per il DTO).
+
+SELECT a.* -- Prendi l'oggetto Aeroporto completo per passarlo a Python
+FROM airports a
+JOIN (
+    -- Questo è il "cuore" della cipolla: estrae solo gli ID che superano il test
+    SELECT f.ORIGIN_AIRPORT_ID AS air_id
+    FROM flights f
+    GROUP BY f.ORIGIN_AIRPORT_ID
+    HAVING COUNT(*) >= %s
+) AS nodi_validi ON a.ID = nodi_validi.air_id; -- Unisco il risultato ad airports
+
+-- ==============================================================================
+-- 💡 I 3 ERRORI PIÙ COMUNI DA EVITARE COME LA PESTE
+-- ==============================================================================
+
+-- ERRORE 1: "Column is ambiguous"
+-- Causa: Hai fatto un JOIN tra due tabelle che hanno una colonna con lo stesso nome (es. ID)
+-- e nella SELECT hai scritto solo "ID".
+-- Soluzione: Usa sempre l'alias! Scrivi "a.ID" o "f.ID".
+
+-- ERRORE 2: Il DB si blocca e gira all'infinito (Prodotto Cartesiano)
+-- Causa: Hai dimenticato l'ON nel JOIN, oppure hai messo una virgola tra due tabelle nel FROM.
+-- Soluzione: Interrompi DBeaver, scrivi esplicitamente JOIN ... ON ...
+
+-- ERRORE 3: Il peso dell'arco è sempre 1 (Quello che ti è successo prima)
+-- Causa: Hai usato gli ID originali nel GROUP BY invece degli alias (id1, id2) usati col LEAST.
+-- Soluzione: Assicurati che il GROUP BY raggruppi per la *coppia* (id1, id2).
