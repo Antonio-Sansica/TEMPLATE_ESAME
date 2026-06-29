@@ -217,3 +217,178 @@ class Controller:
         # )
         # for nodo in percorso_esatto:
         #     self._view.txt_result.controls.append(ft.Text(f"-> {nodo.nome}"))
+
+    def handle_cerca_percorso_fisso(self, e):
+        # ==========================================
+        # 1. LETTURA E VALIDAZIONE INPUT
+        # ==========================================
+        # A. Recupero il nodo di partenza (es. dal menu a tendina)
+        nodo_selezionato = self._view.dd_artisti.value
+        if nodo_selezionato is None:
+            self._view.create_alert("Attenzione: Seleziona prima un artista dal menu a tendina!")
+            return
+
+        # B. Recupero e valido la lunghezza inserita dall'utente
+        valore_input = self._view.txt_lunghezza.value
+        if not valore_input:
+            self._view.create_alert("Attenzione: Inserisci una lunghezza per il percorso!")
+            return
+
+        try:
+            lunghezza_input = int(valore_input)
+            # Un cammino deve avere almeno un punto A e un punto B (lunghezza 2)
+            if lunghezza_input < 2:
+                self._view.create_alert("La lunghezza deve essere di almeno 2 nodi!")
+                return
+        except ValueError:
+            self._view.create_alert("Attenzione: La lunghezza deve essere un numero intero valido!")
+            return
+
+        # ==========================================
+        # 2. CHIAMATA AL MODEL E PULIZIA VIEW
+        # ==========================================
+        self._view.txt_result.controls.clear()
+
+        # Chiamo la ricorsione passandogli il nodo (convertito se serve) e la lunghezza
+        percorso_ottimo, peso_max = self._model.calcola_percorso_crescente_lunghezza_fissa(nodo_selezionato,
+                                                                                           lunghezza_input)
+
+        # Controllo se ha trovato qualcosa
+        if not percorso_ottimo:
+            self._view.txt_result.controls.append(
+                ft.Text(f"Nessun percorso di lunghezza {lunghezza_input} trovato con pesi crescenti.", color="red")
+            )
+            self._view.update_page()
+            return
+
+        # ==========================================
+        # 3. STAMPE DEI RISULTATI (Scegli quella richiesta dalla traccia)
+        # ==========================================
+        # Stampa dell'intestazione (Sempre utile)
+        self._view.txt_result.controls.append(
+            ft.Text(f"Trovato percorso ottimo! Peso totale: {peso_max}", color="green", weight="bold")
+        )
+
+        # -------------------------------------------------------------
+        # VARIANTE A: Stampa Base (Solo la lista dei nodi in ordine)
+        # "Stampare i nodi del percorso dal primo all'ultimo"
+        # -------------------------------------------------------------
+        self._view.txt_result.controls.append(ft.Text("Nodi attraversati:", weight="bold"))
+        for nodo in percorso_ottimo:
+            # Assicurati che l'oggetto nodo abbia il metodo __str__ impostato!
+            self._view.txt_result.controls.append(ft.Text(f"-> {nodo}"))
+
+        # -------------------------------------------------------------
+        # VARIANTE B: Stampa Dettagliata (Nodi + Pesi dei singoli archi)
+        # "Stampare l'elenco degli archi attraversati e il relativo peso"
+        # -------------------------------------------------------------
+        # self._view.txt_result.controls.append(ft.Text("Dettaglio Archi:", weight="bold"))
+        # for i in range(len(percorso_ottimo) - 1):
+        #     nodo_corrente = percorso_ottimo[i]
+        #     nodo_successivo = percorso_ottimo[i + 1]
+        #
+        #     # Vado a pescare il peso specifico di questo arco dal grafo del model
+        #     peso_arco = self._model.grafo[nodo_corrente][nodo_successivo]['weight']
+        #
+        #     self._view.txt_result.controls.append(
+        #         ft.Text(f"{nodo_corrente} ---> {nodo_successivo} (Peso: {peso_arco})")
+        #     )
+
+        # -------------------------------------------------------------
+        # VARIANTE C: Metriche Aggiuntive
+        # "Stampare il numero totale di archi attraversati e i nodi estremi"
+        # -------------------------------------------------------------
+        # numero_archi = len(percorso_ottimo) - 1
+        # nodo_partenza = percorso_ottimo[0]
+        # nodo_arrivo = percorso_ottimo[-1]
+        # self._view.txt_result.controls.append(
+        #     ft.Text(f"Partenza: {nodo_partenza} | Arrivo: {nodo_arrivo} | Archi totali: {numero_archi}")
+        # )
+
+        # 4. Non dimenticare di aggiornare la UI alla fine!
+        self._view.update_page()
+
+        # -------------------------------------------------------------
+        # STAMPA ORDINATA (Es. Ordine Alfabetico per Nome dell'Artista) da sostituire ad A
+        # -------------------------------------------------------------
+        self._view.txt_result.controls.append(ft.Text("Nodi attraversati (Ordinati alfabeticamente):", weight="bold"))
+
+        # Uso sorted() e una lambda per dire a Python: "Ordina basandoti sull'attributo .nome dell'oggetto"
+        # Se il prof chiede l'ordine DECRESCENTE, aggiungi reverse=True -> sorted(..., reverse=True)
+        nodi_ordinati = sorted(percorso_ottimo, key=lambda nodo: nodo.nome)
+
+        for nodo in nodi_ordinati:
+            self._view.txt_result.controls.append(ft.Text(f"- {nodo}"))
+
+
+
+
+    def handle_cerca_percorso_crescente_peso(self, e):
+        # ==========================================
+        # 1. LETTURA INPUT (Nodo di partenza)
+        # ==========================================
+        nodo_selezionato = self._view.dd_artisti.value
+        if nodo_selezionato is None:
+            self._view.create_alert("Attenzione: Seleziona prima un artista dal menu!")
+            return
+
+        # ==========================================
+        # 2. GESTIONE CASO 2 vs CASO 3
+        # ==========================================
+        # Leggo cosa ha scritto l'utente nella casella della lunghezza
+        valore_input = self._view.txt_lunghezza.value
+        lunghezza_massima = None  # Di default parto presupponendo il CASO 2
+
+        # Se l'utente ha scritto qualcosa, allora siamo nel CASO 3!
+        if valore_input:
+            try:
+                lunghezza_massima = int(valore_input)
+                if lunghezza_massima < 2:
+                    self._view.create_alert("La lunghezza massima deve essere almeno 2!")
+                    return
+            except ValueError:
+                self._view.create_alert("Inserisci un numero intero valido per la lunghezza!")
+                return
+
+        # ==========================================
+        # 3. CHIAMATA AL MODEL
+        # ==========================================
+        self._view.txt_result.controls.clear()
+
+        # Passo il nodo e la lunghezza_massima (che sarà un numero per il Caso 3, o 'None' per il Caso 2)
+        percorso_ottimo, peso_max = self._model.calcola_percorso_crescente_max_peso(
+            nodo_selezionato,
+            lunghezza_max=lunghezza_massima
+        )
+
+        # ==========================================
+        # 4. STAMPA DEI RISULTATI
+        # ==========================================
+        if not percorso_ottimo:
+            self._view.txt_result.controls.append(
+                ft.Text("Nessun percorso trovato con le condizioni richieste.", color="red")
+            )
+            self._view.update_page()
+            return
+
+        # Intestazione con il risultato vincente
+        self._view.txt_result.controls.append(
+            ft.Text(f"Trovato percorso ottimo! Peso totale massimo: {peso_max}", color="green", weight="bold")
+        )
+
+        # Stampa dei nodi (In ordine naturale di cammino)
+        self._view.txt_result.controls.append(ft.Text("Nodi attraversati:", weight="bold"))
+        for nodo in percorso_ottimo:
+            # Stampa l'oggetto (richiede che l'oggetto abbia il metodo __str__)
+            self._view.txt_result.controls.append(ft.Text(f"-> {nodo}"))
+
+        # (Opzionale) Se il prof chiede di stampare anche i pesi degli archi attraversati
+        # self._view.txt_result.controls.append(ft.Text("\nDettaglio archi attraversati:", weight="bold"))
+        # for i in range(len(percorso_ottimo) - 1):
+        #     u = percorso_ottimo[i]
+        #     v = percorso_ottimo[i+1]
+        #     peso_arco = self._model.grafo[u][v]['weight']
+        #     self._view.txt_result.controls.append(ft.Text(f"{u} ---> {v} (Peso: {peso_arco})"))
+
+        self._view.update_page()
+

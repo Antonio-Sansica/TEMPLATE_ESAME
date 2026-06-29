@@ -457,6 +457,8 @@ class Model:
         if len(parziale) > self._punteggio_ottimo:
             self._punteggio_ottimo = len(parziale)
             self._soluzione_ottima = copy.deepcopy(parziale)
+            # Oppure usa questo per evitare bug:
+            self._soluzione_ottima = list(parziale)
 
         # 2. ESPLORAZIONE: Ci muoviamo SOLO seguendo le strade del grafo!
         ultimo_nodo = parziale[-1]
@@ -583,4 +585,164 @@ class Model:
                     # Vado in profondità
                     parziale.append(vicino)
                     self._ricorsione_percorso_fisso(parziale, nodo_end, lunghezza_target, peso_attuale + peso_arco)
+                    parziale.pop()
+
+
+        # =========================================================================
+        # RICORSIONE MISTA: LUNGHEZZA FISSA + PESI ARCHI CRESCENTI
+        # === QUANDO USARLA ===
+        # "Trova un cammino semplice di lunghezza esatta L, partendo dal nodo A,
+        # in cui il peso degli archi sia strettamente crescente, massimizzando
+        # il peso totale del percorso."
+        # =========================================================================
+    def calcola_percorso_crescente_lunghezza_fissa(self, nodo_partenza, lunghezza_target):
+        # 1. Inizializzazione variabili per il record
+        self._soluzione_ottima = []
+        # Massimizziamo il peso totale. Se cercassi il minimo, metti float('inf')
+        self._punteggio_ottimo = 0
+
+        # 2. Il cammino deve obbligatoriamente partire dal nodo scelto
+        parziale = [nodo_partenza]
+
+        # 3. Avvio la ricorsione.
+        # Parametri: (lista_parziale, lunghezza_desiderata, peso_arco_precedente, peso_totale_accumulato)
+        # Passo -float('inf') come peso precedente così il primissimo arco viene sempre accettato
+        self._ricorsione_mix(parziale, lunghezza_target, -float('inf'), 0)
+
+        # 4. Ritorno il risultato al controller
+        return self._soluzione_ottima, self._punteggio_ottimo
+
+    def _ricorsione_mix(self, parziale, lunghezza_target, peso_precedente, peso_totale):
+
+        # ==========================================
+        # FASE 1: VALUTAZIONE (Condizione di Stop)
+        # ==========================================
+        # Ho raggiunto l'esatta lunghezza richiesta (numero di nodi)?
+        if len(parziale) == lunghezza_target:
+
+            # Valuto se questo percorso ha un peso totale maggiore del mio record attuale
+            if peso_totale > self._punteggio_ottimo:
+                self._punteggio_ottimo = peso_totale
+                # USO list() E NON deepcopy() per evitare il Time Limit Exceeded (Timeout) all'esame!
+                self._soluzione_ottima = list(parziale)
+
+                # Mi fermo qui in ogni caso: non devo superare questa lunghezza.
+            return
+
+            # PRUNING (TAGLIO RAMI MORTI): Sicurezza anti-crash.
+        # Se per qualche strano motivo supero la lunghezza, blocco subito l'esplorazione.
+        if len(parziale) >= lunghezza_target:
+            return
+
+        # ==========================================
+        # FASE 2: ESPLORAZIONE DEL GRAFO
+        # ==========================================
+        ultimo_nodo = parziale[-1]
+
+        # 🚨 BIVIO GRAFO:
+        # Usa .neighbors() se il grafo NON è orientato (nx.Graph)
+        # Usa .successors() se il grafo È orientato (nx.DiGraph)
+        for vicino in self.grafo.neighbors(ultimo_nodo):
+
+            # VINCOLO A: "Cammino Semplice" = Non posso passare dove sono già stato
+            if vicino not in parziale:
+
+                # Leggo il peso del nuovo arco dal grafo
+                # Assicurati che l'attributo si chiami 'weight', altrimenti cambialo
+                peso_nuovo_arco = self.grafo[ultimo_nodo][vicino]['weight']
+
+                # VINCOLO B: "Archi strettamente crescenti"
+                # L'arco che sto per imboccare è più pesante di quello appena attraversato?
+                if peso_nuovo_arco > peso_precedente:
+                    # ==========================================
+                    # FASE 3: AZIONE, PROFONDITÀ E BACKTRACKING
+                    # ==========================================
+                    # Aggiungo il nodo
+                    parziale.append(vicino)
+
+                    # Richiamo la funzione.
+                    # ATTENZIONE: Il "peso_nuovo_arco" diventa il nuovo "peso_precedente".
+                    # Aggiorno anche il "peso_totale" sommandoci il peso di questo arco.
+                    self._ricorsione_mix(
+                        parziale,
+                        lunghezza_target,
+                        peso_nuovo_arco,
+                        peso_totale + peso_nuovo_arco
+                    )
+
+                    # Rimuovo il nodo per esplorare altre strade (Backtracking)
+                    parziale.pop()
+
+    # =========================================================================
+    # RICORSIONE: ARCHI CRESCENTI + MASSIMIZZA PESO (CASO 2 e CASO 3)
+    # === QUANDO USARLA ===
+    # CASO 2: "Trova il cammino con archi strettamente crescenti che massimizza il peso totale"
+    # CASO 3: "Come il Caso 2, ma il cammino deve essere lungo al MASSIMO L nodi"
+    # =========================================================================
+    def calcola_percorso_crescente_max_peso(self, nodo_partenza, lunghezza_max=None):
+        # 1. Inizializzazione record
+        self._soluzione_ottima = []
+        self._punteggio_ottimo = 0  # Cerchiamo di massimizzare la somma dei pesi
+
+        # 2. Il percorso parte obbligatoriamente dal nodo selezionato
+        parziale = [nodo_partenza]
+
+        # 3. Avvio la ricorsione passando:
+        # - parziale
+        # - peso_precedente: -float('inf') assicura che il primissimo arco venga accettato
+        # - peso_totale: 0 all'inizio
+        # - lunghezza_max: Se il prof non la chiede (Caso 2), arriverà 'None'
+        self._ricorsione_crescente_peso(parziale, -float('inf'), 0, lunghezza_max)
+
+        return self._soluzione_ottima, self._punteggio_ottimo
+
+    def _ricorsione_crescente_peso(self, parziale, peso_precedente, peso_totale, lunghezza_max):
+
+        # ==========================================
+        # FASE 1: PRUNING (Freno a mano per il CASO 3)
+        # ==========================================
+        # Se la traccia prevedeva una lunghezza massima, blocco l'esplorazione se la supero.
+        if lunghezza_max is not None and len(parziale) > lunghezza_max:
+            return
+
+        # ==========================================
+        # FASE 2: VALUTAZIONE (Aggiornamento Record)
+        # ==========================================
+        # Dato che non cerchiamo una lunghezza "esatta", OGNI passo valido potrebbe
+        # essere il record vincente. Quindi valuto ad ogni giro di ricorsione!
+        if peso_totale > self._punteggio_ottimo:
+            self._punteggio_ottimo = peso_totale
+            # Uso list(parziale) per velocità, MAI copy.deepcopy() nei grafi!
+            self._soluzione_ottima = list(parziale)
+
+        # ==========================================
+        # FASE 3: ESPLORAZIONE DEL GRAFO
+        # ==========================================
+        ultimo_nodo = parziale[-1]
+
+        # 🚨 BIVIO GRAFO: Usa .successors() se nx.DiGraph() orientato!
+        for vicino in self.grafo.neighbors(ultimo_nodo):
+
+            # VINCOLO A (Cammino Semplice): Non passo dove sono già stato
+            if vicino not in parziale:
+
+                # Leggo il peso del nuovo arco
+                # Cambia 'weight' se nel tuo create_graph hai usato un altro nome
+                peso_nuovo_arco = self.grafo[ultimo_nodo][vicino]['weight']
+
+                # VINCOLO B (Archi Strettamente Crescenti)
+                if peso_nuovo_arco > peso_precedente:
+                    # 1. AZIONE: Aggiungo il nodo
+                    parziale.append(vicino)
+
+                    # 2. RICORSIONE: Il "nuovo_arco" diventa il "precedente",
+                    # e lo sommo al "peso_totale"
+                    self._ricorsione_crescente_peso(
+                        parziale,
+                        peso_nuovo_arco,
+                        peso_totale + peso_nuovo_arco,
+                        lunghezza_max
+                    )
+
+                    # 3. BACKTRACKING: Tolgo il nodo per esplorare altre strade
                     parziale.pop()
